@@ -1,62 +1,71 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.AI; // nodig om de unit meteen correct op de NavMesh te zetten
+using UnityEngine.AI;
 
+/// <summary>
+/// Produceert precies één type unit, na bouwtijd.
+/// Nu met: kosten (Metal/Energy) en betaalcheck via ResourceManager.
+/// </summary>
 [DisallowMultipleComponent]
 public class Building : MonoBehaviour
 {
-    // Prefab van de unit die dit gebouw kan produceren
-    [Tooltip("Prefab van unit die deze building produceert")]
+    [Header("Production")]
     public GameObject unitPrefab;
-
-    // Transform waar de unit moet spawnen (bijv. een empty object 'SpawnPoint')
     public Transform spawnPoint;
-
-    // Tijd in seconden die het duurt om een unit te maken
     public float buildTime = 1.5f;
 
-    // Houdt bij of het gebouw nu iets aan het produceren is
+    [Header("Cost per unit")]
+    public int costMetal = 50;
+    public int costEnergy = 20;
+
     private bool isProducing = false;
     public bool IsProducing => isProducing;
 
-    // Wordt aangeroepen vanuit de UI wanneer je op 'Produce' klikt
     public void StartProduction()
     {
-        // Voorkom dubbel starten als al bezig of setup niet klopt
+
+        // 1) Guard clauses
         if (isProducing || unitPrefab == null || spawnPoint == null) return;
 
-        // Start coroutine die de productie afhandelt
+        // 2) Betaal check: als te weinig → niks doen (UI kan dit ook tonen)
+        if (ResourceManager.Instance != null)
+        {
+            if (!ResourceManager.Instance.TrySpend(costMetal, costEnergy))
+            {
+                Debug.Log("Not enough resources to produce unit.", this);
+                return;
+            }
+        }
+
+        // 3) Start productie (kosten zijn nu al afgeschreven)
         StartCoroutine(ProduceCoroutine());
     }
 
-    // Coroutine die een wachttijd simuleert en daarna de unit spawnt
     private IEnumerator ProduceCoroutine()
     {
         isProducing = true;
 
-        // Wacht de buildtime af (simuleert productietijd)
+        // Simuleer bouwtijd
         yield return new WaitForSeconds(buildTime);
 
-        // Maak een nieuwe unit aan op de spawnPoint positie
+        // Spawn unit
         GameObject unitGO = Instantiate(unitPrefab, spawnPoint.position, Quaternion.identity);
-        unitGO.name = unitPrefab.name; // optioneel, voor nette namen in de hierarchy
+        unitGO.name = unitPrefab.name;
 
-        // Check of de unit een NavMeshAgent heeft
+        // Plaats netjes op NavMesh (Warp)
         var agent = unitGO.GetComponent<NavMeshAgent>();
         if (agent != null)
         {
-            // Plaats de unit netjes op de NavMesh (belangrijk voor movement)
             if (NavMesh.SamplePosition(unitGO.transform.position, out NavMeshHit navHit, 2f, NavMesh.AllAreas))
-            {
                 agent.Warp(navHit.position);
-            }
-            else
-            {
-                Debug.LogWarning("Spawn position is not on NavMesh for unit: " + unitGO.name, this);
-            }
         }
 
-        // Productie afgerond, gebouw is weer beschikbaar
+        // (Optioneel) teamId erven van het gebouw:
+        var buildingHealth = GetComponent<Health>();
+        var unitHealth = unitGO.GetComponent<Health>();
+        if (buildingHealth != null && unitHealth != null)
+            unitHealth.teamId = buildingHealth.teamId;
+
         isProducing = false;
     }
 }

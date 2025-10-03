@@ -160,6 +160,8 @@ MonoBehaviour:
   unitPrefab: {fileID: 0}
   spawnPoint: {fileID: 2490208830544690864}
   buildTime: 2
+  costMetal: 50
+  costEnergy: 20
 --- !u!114 &3528053264702643158
 MonoBehaviour:
   m_ObjectHideFlags: 0
