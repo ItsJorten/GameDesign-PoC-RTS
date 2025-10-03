@@ -10,16 +10,24 @@ public class UIManager : MonoBehaviour
     public Button produceButton;
     public TMP_Text buildingTitle;       // <— TMP i.p.v. Text
 
+    private Building currentBuilding; // onthoud referentie voor refresh
+
     void OnEnable()
     {
         if (SelectionManager.Instance != null)
             SelectionManager.Instance.OnSelectionChanged += UpdateUI;
+            
+        if (ResourceManager.Instance != null)
+            ResourceManager.Instance.OnResourcesChanged += RefreshBuildingPanel;
     }
 
     void OnDisable()
     {
         if (SelectionManager.Instance != null)
             SelectionManager.Instance.OnSelectionChanged -= UpdateUI;
+                    
+        if (ResourceManager.Instance != null)
+        ResourceManager.Instance.OnResourcesChanged -= RefreshBuildingPanel;
     }
 
     void Start()
@@ -29,33 +37,37 @@ public class UIManager : MonoBehaviour
 
     private void UpdateUI(List<Selectable> selection)
     {
-        if (buildingPanel == null || produceButton == null || buildingTitle == null)
-            return;
+        currentBuilding = null;
+            if (selection != null && selection.Count == 1 && selection[0].Type == SelectableType.Building)
+            {
+            buildingPanel.SetActive(true);
+            buildingTitle.text = selection[0].name;
+            currentBuilding = selection[0].GetComponent<Building>();
 
-        Selectable single = (selection != null && selection.Count == 1) ? selection[0] : null;
-        bool showBuildingPanel = (single != null && single.Type == SelectableType.Building);
-
-        if (!showBuildingPanel)
-        {
-            buildingPanel.SetActive(false);
             produceButton.onClick.RemoveAllListeners();
-            return;
-        }
+            if (currentBuilding != null)
+            {
+                produceButton.onClick.AddListener(() => currentBuilding.StartProduction());
+            }
 
-        buildingPanel.SetActive(true);
-        buildingTitle.text = single.name;
-
-        var building = single.GetComponent<Building>();
-        produceButton.onClick.RemoveAllListeners();
-
-        if (building != null)
-        {
-            produceButton.interactable = !building.IsProducing;
-            produceButton.onClick.AddListener(() => building.StartProduction());
+            RefreshBuildingPanel(); // enable/disable knop o.b.v. resources + state
         }
         else
         {
             buildingPanel.SetActive(false);
+            produceButton.onClick.RemoveAllListeners();
         }
+    }
+
+    private void RefreshBuildingPanel()
+    {
+        if (!buildingPanel.activeSelf || currentBuilding == null) return;
+
+        bool canAfford = true;
+        if (ResourceManager.Instance != null)
+            canAfford = ResourceManager.Instance.CanAfford(currentBuilding.costMetal, currentBuilding.costEnergy);
+
+        // knop alleen actief als we kunnen betalen en niet aan het produceren zijn
+        produceButton.interactable = canAfford && !currentBuilding.IsProducing;
     }
 }
